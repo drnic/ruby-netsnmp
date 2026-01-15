@@ -75,8 +75,9 @@ module NETSNMP
       MAXPDUSIZE = 0xffff + 1
 
       def initialize(host, port, timeout:)
-        @socket = UDPSocket.new
-        @destaddr = Socket.sockaddr_in(port, host)
+        addrinfo = Addrinfo.getaddrinfo(host, port, nil, :DGRAM).first
+        @socket = UDPSocket.new(addrinfo.afamily)
+        @destaddr = addrinfo.to_sockaddr
         @timeout = timeout
       end
 
