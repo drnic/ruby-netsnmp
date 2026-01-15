@@ -20,6 +20,28 @@ RSpec.describe NETSNMP::SecurityParameters do
 
       it { expect(subject.send(:passkey, password).b).to eq("\xABQ\x01M\x1E\a\x7F`\x17\xDF+\x12\xBE\xE5\xF5\xAAr\x991w\xE9\xBBV\x9CM\xFFZL\xA0\xB4\xAF\xAC".b) }
     end
+    context "sha384" do
+      subject do
+        described_class.new(security_level: :auth_priv, auth_protocol: :sha384, username: "username", engine_id: engine_id, auth_password: "maplesyrup", priv_password: "maplesyrup")
+      end
+
+      it "generates a 48-byte passkey" do
+        passkey = subject.send(:passkey, password)
+        expect(passkey.bytesize).to eq(48)
+        expect(passkey).to be_a(String)
+      end
+    end
+    context "sha512" do
+      subject do
+        described_class.new(security_level: :auth_priv, auth_protocol: :sha512, username: "username", engine_id: engine_id, auth_password: "maplesyrup", priv_password: "maplesyrup")
+      end
+
+      it "generates a 64-byte passkey" do
+        passkey = subject.send(:passkey, password)
+        expect(passkey.bytesize).to eq(64)
+        expect(passkey).to be_a(String)
+      end
+    end
   end
 
   describe "keys" do
@@ -57,6 +79,117 @@ RSpec.describe NETSNMP::SecurityParameters do
       expect(sha_sec.send(:priv_key)).to eq("\x66\x95\xfe\xbc\x92\x88\xe3\x62\x82\x23\x5f\xc7\x15\x1f\x12\x84\x97\xb3\x8f\x3f".b)
       expect(sha256_sec.send(:auth_key)).to eq("\x89\x82\xE0\xE5I\xE8f\xDB6\x1Akb]\x84\xCC\xCC\x11\x16-E>\xE8\xCE:dE\xC2\xD6wo\x0F\x8B".b)
       expect(sha256_sec.send(:priv_key)).to eq("\x89\x82\xE0\xE5I\xE8f\xDB6\x1Akb]\x84\xCC\xCC\x11\x16-E>\xE8\xCE:dE\xC2\xD6wo\x0F\x8B".b)
+    end
+  end
+
+  describe "keys with aes256" do
+    context "with sha256 auth (key length >= 32)" do
+      let(:aes256_sha256_sec) do
+        described_class.new(security_level: :auth_priv,
+                            auth_protocol: :sha256,
+                            priv_protocol: :aes256,
+                            username: "username",
+                            auth_password: password,
+                            priv_password: password,
+                            engine_id: engine_id)
+      end
+
+      it "produces a 32-byte priv_key_extended without extension" do
+        key = aes256_sha256_sec.send(:priv_key_extended)
+        expect(key.bytesize).to eq(32)
+        # SHA256 produces 32 bytes, no extension needed
+        expect(key).to eq(aes256_sha256_sec.send(:priv_key))
+      end
+    end
+
+    context "with md5 auth (key extension needed)" do
+      let(:aes256_md5_sec) do
+        described_class.new(security_level: :auth_priv,
+                            auth_protocol: :md5,
+                            priv_protocol: :aes256,
+                            username: "username",
+                            auth_password: password,
+                            priv_password: password,
+                            engine_id: engine_id)
+      end
+
+      it "extends the 16-byte md5 key to 32 bytes" do
+        base_key = aes256_md5_sec.send(:priv_key)
+        extended_key = aes256_md5_sec.send(:priv_key_extended)
+
+        expect(base_key.bytesize).to eq(16)
+        expect(extended_key.bytesize).to eq(32)
+        # Extended key should start with the base key
+        expect(extended_key[0, 16]).to eq(base_key)
+      end
+    end
+
+    context "with sha auth (key extension needed)" do
+      let(:aes256_sha_sec) do
+        described_class.new(security_level: :auth_priv,
+                            auth_protocol: :sha,
+                            priv_protocol: :aes256,
+                            username: "username",
+                            auth_password: password,
+                            priv_password: password,
+                            engine_id: engine_id)
+      end
+
+      it "extends the 20-byte sha key to 32 bytes" do
+        base_key = aes256_sha_sec.send(:priv_key)
+        extended_key = aes256_sha_sec.send(:priv_key_extended)
+
+        expect(base_key.bytesize).to eq(20)
+        expect(extended_key.bytesize).to eq(32)
+        # Extended key should start with the base key
+        expect(extended_key[0, 20]).to eq(base_key)
+      end
+    end
+  end
+
+  describe "#sign" do
+    let(:message) { "test message for signing" }
+
+    context "with sha384" do
+      subject do
+        described_class.new(security_level: :auth_priv, auth_protocol: :sha384,
+                          username: "username", engine_id: engine_id,
+                          auth_password: "maplesyrup", priv_password: "maplesyrup")
+      end
+
+      it "generates a 32-byte MAC" do
+        mac = subject.sign(message)
+        expect(mac).to be_a(String)
+        expect(mac.bytesize).to eq(32)
+      end
+    end
+
+    context "with sha512" do
+      subject do
+        described_class.new(security_level: :auth_priv, auth_protocol: :sha512,
+                          username: "username", engine_id: engine_id,
+                          auth_password: "maplesyrup", priv_password: "maplesyrup")
+      end
+
+      it "generates a 48-byte MAC" do
+        mac = subject.sign(message)
+        expect(mac).to be_a(String)
+        expect(mac.bytesize).to eq(48)
+      end
+    end
+
+    context "with sha256" do
+      subject do
+        described_class.new(security_level: :auth_priv, auth_protocol: :sha256,
+                          username: "username", engine_id: engine_id,
+                          auth_password: "maplesyrup", priv_password: "maplesyrup")
+      end
+
+      it "generates a 24-byte MAC" do
+        mac = subject.sign(message)
+        expect(mac).to be_a(String)
+        expect(mac.bytesize).to eq(24)
+      end
     end
   end
 

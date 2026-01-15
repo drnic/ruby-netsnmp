@@ -18,6 +18,7 @@ if RUBY_VERSION >= "3.0.0"
 end
 
 gem "rbs" if RUBY_VERSION >= "3.0"
+gem "ostruct" if RUBY_VERSION >= "3.3"
 
 if RUBY_VERSION < "2.3"
   gem "simplecov", "< 0.11.0"

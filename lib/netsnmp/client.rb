@@ -105,24 +105,26 @@ module NETSNMP
 
     # Perform a SNMP GETBULK Request (performs multiple GETNEXT)
     #
-    # @param [String] oid the first oid
-    # @param [Hash] options the varbind options
-    # @option options [Integer] :errstat sets the number of objects expected for the getnext instance
-    # @option options [Integer] :errindex number of objects repeating for all the repeating IODs.
+    # GETBULK is only available in SNMPv2c and v3. It efficiently retrieves
+    # multiple values in a single request.
     #
-    # @return [Enumerator] the enumerator-collection of the oid-value pairs
+    # @param [Array] oid_opts the oids to query
+    # @param [Integer] non_repeaters number of scalar OIDs at the start (default: 0)
+    # @param [Integer] max_repetitions maximum iterations for remaining OIDs (default: 10)
     #
-    # def get_bulk(oid)
-    #  request = @session.build_pdu(:getbulk, *oids)
-    #  request[:error_status]  = options.delete(:non_repeaters) || 0
-    #  request[:error_index] = options.delete(:max_repetitions) || 10
-    #  response = @session.send(request)
-    #  Enumerator.new do |y|
-    #    response.varbinds.each do |varbind|
-    #      y << [ varbind.oid, varbind.value ]
-    #    end
-    #  end
-    # end
+    # @return [Array] array of [oid, value] pairs
+    # @raise [Error] if used with SNMPv1
+    #
+    def get_bulk(*oid_opts, non_repeaters: 0, max_repetitions: 10)
+      raise Error, "GETBULK is not supported in SNMPv1" if @session.version.zero?
+
+      request = @session.build_pdu(:getbulk, *oid_opts)
+      request.instance_variable_set(:@error_status, non_repeaters)
+      request.instance_variable_set(:@error_index, max_repetitions)
+      response = handle_retries { @session.send(request) }
+      yield response if block_given?
+      response.varbinds.map { |varbind| [varbind.oid, varbind.value] }
+    end
 
     # Perform a SNMP SET Request
     #

@@ -27,8 +27,8 @@ module NETSNMP
     # @param [String] username the snmp v3 username
     # @param [String] engine_id the device engine id (initialized to '' for report)
     # @param [Symbol, integer] security_level allowed snmp v3 security level (:auth_priv, :auth_no_priv, etc)
-    # @param [Symbol, nil] auth_protocol a supported authentication protocol (currently supported: :md5, :sha, :sha256)
-    # @param [Symbol, nil] priv_protocol a supported privacy protocol (currently supported: :des, :aes)
+    # @param [Symbol, nil] auth_protocol a supported authentication protocol (currently supported: :md5, :sha, :sha256, :sha384, :sha512)
+    # @param [Symbol, nil] priv_protocol a supported privacy protocol (currently supported: :des, :aes, :aes256)
     # @param [String, nil] auth_password the authentication password
     # @param [String, nil] priv_password the privacy password
     #
@@ -130,9 +130,18 @@ module NETSNMP
 
       key = auth_key.dup
 
+      # SHA-2 family uses HMAC per RFC 7860
       # SHA256 => https://datatracker.ietf.org/doc/html/rfc7860#section-4.2.2
-      # The 24 first octets of HMAC are taken as the computed MAC value
-      return OpenSSL::HMAC.digest("SHA256", key, message)[0, 24] if @auth_protocol == :sha256
+      # SHA384 => https://datatracker.ietf.org/doc/html/rfc7860#section-5.2.2
+      # SHA512 => https://datatracker.ietf.org/doc/html/rfc7860#section-6.2.2
+      case @auth_protocol
+      when :sha256
+        return OpenSSL::HMAC.digest("SHA256", key, message)[0, 24]
+      when :sha384
+        return OpenSSL::HMAC.digest("SHA384", key, message)[0, 32]
+      when :sha512
+        return OpenSSL::HMAC.digest("SHA512", key, message)[0, 48]
+      end
 
       # MD5 => https://datatracker.ietf.org/doc/html/rfc3414#section-6.3.2
       # SHA1 => https://datatracker.ietf.org/doc/html/rfc3414#section-7.3.2
@@ -180,6 +189,24 @@ module NETSNMP
       @priv_key ||= localize_key(@priv_pass_key)
     end
 
+    def priv_key_extended
+      @priv_key_extended ||= localize_key_extended(@priv_pass_key)
+    end
+
+    def localize_key_extended(key)
+      base_key = localize_key(key)
+      return base_key if base_key.length >= 32
+
+      # Key extension for AES-256 when using shorter auth protocols (MD5/SHA1)
+      # Per RFC 3826 key extension methodology
+      digest.reset
+      digest << base_key
+      digest << @engine_id
+      extension = digest.digest
+
+      (base_key + extension)[0, 32]
+    end
+
     def localize_key(key)
       digest.reset
       digest << key
@@ -214,6 +241,8 @@ module NETSNMP
                   when :md5 then OpenSSL::Digest.new("MD5")
                   when :sha then OpenSSL::Digest.new("SHA1")
                   when :sha256 then OpenSSL::Digest.new("SHA256")
+                  when :sha384 then OpenSSL::Digest.new("SHA384")
+                  when :sha512 then OpenSSL::Digest.new("SHA512")
                   else
                     raise Error, "unsupported auth protocol: #{@auth_protocol}"
                   end
@@ -223,6 +252,7 @@ module NETSNMP
       @encryption ||= case @priv_protocol
                       when :des then Encryption::DES.new(priv_key)
                       when :aes then Encryption::AES.new(priv_key)
+                      when :aes256 then Encryption::AES256.new(priv_key_extended)
                       end
     end
 
