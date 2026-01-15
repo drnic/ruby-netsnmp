@@ -2,6 +2,12 @@
 
 require "netsnmp/version"
 require "openssl"
+
+# Enable legacy algorithms (DES) for OpenSSL 3.0+
+if defined?(OpenSSL::Provider)
+  OpenSSL::Provider.load("legacy")
+end
+
 require "io/wait"
 require "securerandom"
 require "ipaddr"
