@@ -82,6 +82,71 @@ RSpec.describe NETSNMP::SecurityParameters do
     end
   end
 
+  describe "keys with aes256" do
+    context "with sha256 auth (key length >= 32)" do
+      let(:aes256_sha256_sec) do
+        described_class.new(security_level: :auth_priv,
+                            auth_protocol: :sha256,
+                            priv_protocol: :aes256,
+                            username: "username",
+                            auth_password: password,
+                            priv_password: password,
+                            engine_id: engine_id)
+      end
+
+      it "produces a 32-byte priv_key_extended without extension" do
+        key = aes256_sha256_sec.send(:priv_key_extended)
+        expect(key.bytesize).to eq(32)
+        # SHA256 produces 32 bytes, no extension needed
+        expect(key).to eq(aes256_sha256_sec.send(:priv_key))
+      end
+    end
+
+    context "with md5 auth (key extension needed)" do
+      let(:aes256_md5_sec) do
+        described_class.new(security_level: :auth_priv,
+                            auth_protocol: :md5,
+                            priv_protocol: :aes256,
+                            username: "username",
+                            auth_password: password,
+                            priv_password: password,
+                            engine_id: engine_id)
+      end
+
+      it "extends the 16-byte md5 key to 32 bytes" do
+        base_key = aes256_md5_sec.send(:priv_key)
+        extended_key = aes256_md5_sec.send(:priv_key_extended)
+
+        expect(base_key.bytesize).to eq(16)
+        expect(extended_key.bytesize).to eq(32)
+        # Extended key should start with the base key
+        expect(extended_key[0, 16]).to eq(base_key)
+      end
+    end
+
+    context "with sha auth (key extension needed)" do
+      let(:aes256_sha_sec) do
+        described_class.new(security_level: :auth_priv,
+                            auth_protocol: :sha,
+                            priv_protocol: :aes256,
+                            username: "username",
+                            auth_password: password,
+                            priv_password: password,
+                            engine_id: engine_id)
+      end
+
+      it "extends the 20-byte sha key to 32 bytes" do
+        base_key = aes256_sha_sec.send(:priv_key)
+        extended_key = aes256_sha_sec.send(:priv_key_extended)
+
+        expect(base_key.bytesize).to eq(20)
+        expect(extended_key.bytesize).to eq(32)
+        # Extended key should start with the base key
+        expect(extended_key[0, 20]).to eq(base_key)
+      end
+    end
+  end
+
   describe "#sign" do
     let(:message) { "test message for signing" }
 

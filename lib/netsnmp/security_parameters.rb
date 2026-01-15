@@ -28,7 +28,7 @@ module NETSNMP
     # @param [String] engine_id the device engine id (initialized to '' for report)
     # @param [Symbol, integer] security_level allowed snmp v3 security level (:auth_priv, :auth_no_priv, etc)
     # @param [Symbol, nil] auth_protocol a supported authentication protocol (currently supported: :md5, :sha, :sha256, :sha384, :sha512)
-    # @param [Symbol, nil] priv_protocol a supported privacy protocol (currently supported: :des, :aes)
+    # @param [Symbol, nil] priv_protocol a supported privacy protocol (currently supported: :des, :aes, :aes256)
     # @param [String, nil] auth_password the authentication password
     # @param [String, nil] priv_password the privacy password
     #
@@ -189,6 +189,24 @@ module NETSNMP
       @priv_key ||= localize_key(@priv_pass_key)
     end
 
+    def priv_key_extended
+      @priv_key_extended ||= localize_key_extended(@priv_pass_key)
+    end
+
+    def localize_key_extended(key)
+      base_key = localize_key(key)
+      return base_key if base_key.length >= 32
+
+      # Key extension for AES-256 when using shorter auth protocols (MD5/SHA1)
+      # Per RFC 3826 key extension methodology
+      digest.reset
+      digest << base_key
+      digest << @engine_id
+      extension = digest.digest
+
+      (base_key + extension)[0, 32]
+    end
+
     def localize_key(key)
       digest.reset
       digest << key
@@ -234,6 +252,7 @@ module NETSNMP
       @encryption ||= case @priv_protocol
                       when :des then Encryption::DES.new(priv_key)
                       when :aes then Encryption::AES.new(priv_key)
+                      when :aes256 then Encryption::AES256.new(priv_key_extended)
                       end
     end
 

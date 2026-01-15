@@ -51,6 +51,7 @@ require "netsnmp/security_parameters"
 require "netsnmp/message"
 require "netsnmp/encryption/des"
 require "netsnmp/encryption/aes"
+require "netsnmp/encryption/aes256"
 
 require "netsnmp/client"
 
