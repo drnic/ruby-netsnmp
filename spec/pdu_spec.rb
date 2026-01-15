@@ -34,4 +34,59 @@ RSpec.describe NETSNMP::PDU do
       it { expect(pdu_response.varbinds[0].value).to eq("test") }
     end
   end
+
+  describe "GETBULK PDU" do
+    context "v2c" do
+      let(:pdu_getbulk) do
+        described_class.build(:getbulk, version: 1,
+                                        community: "public",
+                                        request_id: 12345,
+                                        error_status: 0,
+                                        error_index: 10)
+      end
+
+      before { pdu_getbulk.add_varbind(oid: get_request_oid) }
+
+      it "encodes with type 5" do
+        expect(pdu_getbulk.type).to eq(5)
+      end
+
+      it "encodes to DER format" do
+        encoded = pdu_getbulk.to_der
+        expect(encoded).to be_a(String)
+        expect(encoded).not_to be_empty
+      end
+
+      it "can be decoded" do
+        encoded = pdu_getbulk.to_der
+        decoded = described_class.decode(encoded)
+        expect(decoded.type).to eq(5)
+        expect(decoded.version).to eq(1)
+        expect(decoded.community).to eq("public")
+        expect(decoded.request_id).to eq(12345)
+      end
+
+      it "preserves non_repeaters in error_status field" do
+        pdu = described_class.build(:getbulk, version: 1,
+                                             community: "public",
+                                             error_status: 2,
+                                             error_index: 10)
+        pdu.add_varbind(oid: get_request_oid)
+        encoded = pdu.to_der
+        decoded = described_class.decode(encoded)
+        expect(decoded.instance_variable_get(:@error_status)).to eq(2)
+      end
+
+      it "preserves max_repetitions in error_index field" do
+        pdu = described_class.build(:getbulk, version: 1,
+                                             community: "public",
+                                             error_status: 0,
+                                             error_index: 15)
+        pdu.add_varbind(oid: get_request_oid)
+        encoded = pdu.to_der
+        decoded = described_class.decode(encoded)
+        expect(decoded.instance_variable_get(:@error_index)).to eq(15)
+      end
+    end
+  end
 end

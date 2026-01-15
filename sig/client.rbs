@@ -11,6 +11,9 @@ module NETSNMP
     def get_next: (*untyped) -> untyped
                 | (*untyped) { (PDU) -> void } -> untyped
 
+    def get_bulk: (*untyped, ?non_repeaters: Integer, ?max_repetitions: Integer) -> Array[[oid_type, oid_value]]
+                | (*untyped, ?non_repeaters: Integer, ?max_repetitions: Integer) { (PDU) -> void } -> Array[[oid_type, oid_value]]
+
     def set: (*untyped) -> untyped
            | (*untyped) { (PDU) -> void } -> untyped
 

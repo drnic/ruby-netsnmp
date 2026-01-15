@@ -8,6 +8,8 @@ module NETSNMP
 
     TIMEOUT = 2
 
+    attr_reader :version
+
     # @param [Hash] opts the options set
     def initialize(version: 1, community: "public", **options)
       @version = case version

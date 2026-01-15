@@ -38,6 +38,12 @@ RSpec.describe NETSNMP::Client do
         }
       end
       let(:set_oid_result) { 43 }
+
+      describe "#get_bulk" do
+        it "raises an error for v1" do
+          expect { subject.get_bulk(oid: get_oid) }.to raise_error(NETSNMP::Error, "GETBULK is not supported in SNMPv1")
+        end
+      end
     end
   end
   describe "v2" do

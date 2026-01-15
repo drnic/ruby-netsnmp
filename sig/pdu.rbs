@@ -1,5 +1,5 @@
 module NETSNMP
-  type pdu_type = :get | :getnext | :set | :inform | :trap | :response
+  type pdu_type = :get | :getnext | :getbulk | :set | :inform | :trap | :response
 
   class PDU
 
